@@ -1,34 +1,47 @@
 // api/index.js — Nusantara MLBB Auth & Admin API
+// Handles: auth, register, login, keys CRUD, logs, connections
+// Storage: Vercel KV (Redis) with in-memory fallback
+
 const crypto = require('crypto');
 
+// ============================================================
+// STORAGE — Vercel KV with fallback
+// ============================================================
 let kv = null;
-try { kv = require('@vercel/kv'); } catch (e) { }
+try { kv = require('@vercel/kv'); } catch (e) { /* fallback to memory */ }
 
+// In-memory fallback (resets on cold start)
 const memStore = { users: {}, keys: {}, logs: [], connections: [] };
 
 async function storeGet(key, fallback = null) {
   if (kv && kv.get) {
-    try { const v = await kv.get(key); return v ?? fallback; } catch (e) { }
+    try { const v = await kv.get(key); return v ?? fallback; } catch (e) { /* ignore */ }
   }
   return memStore[key] ?? fallback;
 }
 async function storeSet(key, value) {
   if (kv && kv.set) {
-    try { await kv.set(key, value); return; } catch (e) { }
+    try { await kv.set(key, value); return; } catch (e) { /* ignore */ }
   }
   memStore[key] = value;
 }
 async function storeDel(key) {
   if (kv && kv.del) {
-    try { await kv.del(key); return; } catch (e) { }
+    try { await kv.del(key); return; } catch (e) { /* ignore */ }
   }
   delete memStore[key];
 }
 
+// ============================================================
+// CONFIG
+// ============================================================
 const API_KEY = process.env.API_KEY || 'NCZ_7fK9xP2mQ8vL4sR6nT1zW5cB';
 const SEAL = crypto.createHash('md5').update(API_KEY).digest('hex');
 const MONTHS_ID = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
+// ============================================================
+// HELPERS
+// ============================================================
 function md5(str) { return crypto.createHash('md5').update(String(str)).digest('hex'); }
 function randToken() { return crypto.randomBytes(16).toString('hex'); }
 
@@ -70,8 +83,11 @@ function sendHTML(res, html) {
   res.end(html);
 }
 
-function badReq(res, msg) { return json(res, 200, { ok: false, error: msg }); }
+function badReq(res, msg) { return json(res, 200, { ok: false, status: false, reason: msg, error: msg }); }
 
+// ============================================================
+// AUTH — Session from cookie/header
+// ============================================================
 function getSession(req) {
   const cookie = req.headers.cookie || '';
   const m = cookie.match(/session=([^;]+)/);
@@ -88,11 +104,15 @@ async function getUser(sessionId) {
   return users[userId] || null;
 }
 
+// ============================================================
+// ROUTES
+// ============================================================
 module.exports = async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const path = url.pathname.replace(/^\/api/, '') || '/';
   const method = req.method;
 
+  // CORS preflight
   if (method === 'OPTIONS') {
     res.writeHead(200, {
       'Access-Control-Allow-Origin': '*',
@@ -102,6 +122,9 @@ module.exports = async (req, res) => {
     return res.end();
   }
 
+  // ========================================================
+  // GET / → Serve admin panel
+  // ========================================================
   if (path === '/' || path === '') {
     try {
       const fs = require('fs');
@@ -112,42 +135,26 @@ module.exports = async (req, res) => {
     }
   }
 
-  if (path === '/auth' || path === '/connect') {
+  // ========================================================
+  // POST /auth — MLBB Binary Auth Endpoint
+  // ========================================================
+  if (path === '/auth') {
     const { params } = await parseBody(req);
-    const game = params.game || '';
-    const userKey = params.user_key || params.key || params.login_key || '';
-    const serial = params.serial || params.device_id || params.java_json_device_id || '';
-    const package = params.package_name || '';
+    const game     = params.game || '';
+    const userKey  = params.user_key || params.key || params.login_key || '';
+    const serial   = params.serial || params.device_id || params.java_json_device_id || '';
+    const package  = params.package_name || '';
 
     console.log(`[AUTH] key=${userKey} serial=${serial}`);
 
-    if (!game && !userKey) {
-      return json(res, 200, {
-        ok: false,
-        status: false,
-        reason: 'INVALID PARAMETER',
-        error: 'Missing game or user_key'
-      });
-    }
-    if (!userKey) {
-      return json(res, 200, {
-        ok: false,
-        status: false,
-        reason: 'Key kosong',
-        error: 'Missing user_key'
-      });
-    }
-    if (!serial) {
-      return json(res, 200, {
-        ok: false,
-        status: false,
-        reason: 'Device ID kosong',
-        error: 'Missing serial/device_id'
-      });
-    }
+    if (!game && !userKey) return json(res, 200, { ok: false, status: false, reason: 'INVALID PARAMETER', error: 'Missing game or user_key' });
+    if (!userKey)           return json(res, 200, { ok: false, status: false, reason: 'Key kosong', error: 'Key kosong' });
+    if (!serial)            return json(res, 200, { ok: false, status: false, reason: 'Device ID kosong', error: 'Device ID kosong' });
 
+    // Load keys
     const keys = await storeGet('keys', {});
 
+    // Search key by name
     let keyData = null;
     let keyName = null;
     for (const [name, data] of Object.entries(keys)) {
@@ -156,31 +163,13 @@ module.exports = async (req, res) => {
       }
     }
 
-    if (!keyData) {
-      return json(res, 200, {
-        ok: false,
-        status: false,
-        reason: 'Login ditolak server',
-        error: 'Invalid key'
-      });
-    }
-    if (!keyData.active) {
-      return json(res, 200, {
-        ok: false,
-        status: false,
-        reason: 'Login ditolak server',
-        error: 'Key is inactive'
-      });
-    }
+    if (!keyData) return json(res, 200, { ok: false, status: false, reason: 'Login ditolak server', error: 'MEMBER KEY NOT REGISTERED' });
+    if (!keyData.active) return json(res, 200, { ok: false, status: false, reason: 'Login ditolak server', error: 'Key disabled' });
     if (keyData.expiresAt && Date.now() > keyData.expiresAt) {
-      return json(res, 200, {
-        ok: false,
-        status: false,
-        reason: `License expired: ${formatDate(Math.floor(keyData.expiresAt/1000))}`,
-        error: 'License expired'
-      });
+      return json(res, 200, { ok: false, status: false, reason: `License expired: ${formatDate(Math.floor(keyData.expiresAt/1000))}`, error: 'expired' });
     }
 
+    // Log connection
     const conn = {
       id: randToken(),
       key: keyName,
@@ -196,12 +185,14 @@ module.exports = async (req, res) => {
     if (logs.length > 5000) logs.length = 5000;
     await storeSet('logs', logs);
 
+    // Update key usage
     keyData.lastUsed = Date.now();
     keyData.usedBy = serial;
     keyData.useCount = (keyData.useCount || 0) + 1;
     keys[keyName] = keyData;
     await storeSet('keys', keys);
 
+    // Generate response (migoreng.my.id format)
     const rng = Math.floor(Date.now() / 1000);
     const token = md5(`${rng}${userKey}${randToken()}`);
     const expiredTs = keyData.expiresAt
@@ -212,40 +203,26 @@ module.exports = async (req, res) => {
       ok: true,
       status: true,
       reason: 'success',
-      message: 'connected',
-      rng: rng,
+      rng,
       tittle: keyData.title || 'MLBB Nusantara',
-      token: token,
+      token,
+      session: token,
       expired: formatDate(expiredTs),
-      expiresAt: expiredTs * 1000,
-      expires_ts: expiredTs,
       seal: md5(`${SEAL}${rng}${token}`),
-      data: {
-        server: {
-          name: 'main_hook',
-          code: 'main-hook'
-        },
-        key: {
-          expiresAt: keyData.expiresAt || 0,
-          uses: keyData.useCount || 0,
-          maxUses: 0,
-          maxDevices: 0,
-          devicesCount: 1
-        },
-        url: null,
-        token: token,
-        rng: rng,
-        tittle: keyData.title || 'MLBB',
-        expired: formatDate(expiredTs)
-      }
     };
 
     return json(res, 200, response);
   }
 
+  // ========================================================
+  // All routes below require session
+  // ========================================================
   const sessionId = getSession(req);
   const user = await getUser(sessionId);
 
+  // ========================================================
+  // POST /register
+  // ========================================================
   if (path === '/register' && method === 'POST') {
     const { params } = await parseBody(req);
     const username = (params.username || '').trim();
@@ -268,6 +245,7 @@ module.exports = async (req, res) => {
     };
     await storeSet('users', users);
 
+    // Auto-login
     const sid = randToken();
     const sessions = await storeGet('sessions', {});
     sessions[sid] = username;
@@ -277,6 +255,9 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, user: { username, displayName, role: users[username].role } });
   }
 
+  // ========================================================
+  // POST /login
+  // ========================================================
   if (path === '/login' && method === 'POST') {
     const { params } = await parseBody(req);
     const username = (params.username || '').trim();
@@ -295,6 +276,9 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, user: { username: u.username, displayName: u.displayName, role: u.role } });
   }
 
+  // ========================================================
+  // POST /logout
+  // ========================================================
   if (path === '/logout' && method === 'POST') {
     if (sessionId) {
       const sessions = await storeGet('sessions', {});
@@ -305,13 +289,22 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true });
   }
 
+  // ========================================================
+  // GET /me — Current user info
+  // ========================================================
   if (path === '/me' && method === 'GET') {
     if (!user) return badReq(res, 'Not logged in');
     return json(res, 200, { ok: true, user: { username: user.username, displayName: user.displayName, role: user.role } });
   }
 
+  // ========================================================
+  // Below require login
+  // ========================================================
   if (!user) return badReq(res, 'Unauthorized — login dulu');
 
+  // ========================================================
+  // GET /keys — List all keys
+  // ========================================================
   if (path === '/keys' && method === 'GET') {
     const keys = await storeGet('keys', {});
     const list = Object.entries(keys).map(([id, k]) => ({
@@ -331,6 +324,9 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, keys: list });
   }
 
+  // ========================================================
+  // POST /keys — Create key
+  // ========================================================
   if (path === '/keys' && method === 'POST') {
     const { params } = await parseBody(req);
     const name = (params.name || '').trim();
@@ -361,6 +357,9 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, key: keys[id] });
   }
 
+  // ========================================================
+  // PUT /keys?id=X — Edit key
+  // ========================================================
   if (path === '/keys' && method === 'PUT') {
     const id = url.searchParams.get('id');
     if (!id) return badReq(res, 'Key ID required');
@@ -384,6 +383,9 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, key: k });
   }
 
+  // ========================================================
+  // DELETE /keys?id=X — Delete key
+  // ========================================================
   if (path === '/keys' && method === 'DELETE') {
     const id = url.searchParams.get('id');
     if (!id) return badReq(res, 'Key ID required');
@@ -397,6 +399,9 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, deleted: id });
   }
 
+  // ========================================================
+  // GET /logs — Connection logs
+  // ========================================================
   if (path === '/logs' && method === 'GET') {
     const logs = await storeGet('logs', []);
     const limit = parseInt(url.searchParams.get('limit')) || 100;
@@ -404,11 +409,17 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, total: logs.length, logs: logs.slice(offset, offset + limit) });
   }
 
+  // ========================================================
+  // DELETE /logs — Clear logs
+  // ========================================================
   if (path === '/logs' && method === 'DELETE') {
     await storeSet('logs', []);
     return json(res, 200, { ok: true, message: 'Logs cleared' });
   }
 
+  // ========================================================
+  // GET /stats — Dashboard stats
+  // ========================================================
   if (path === '/stats' && method === 'GET') {
     const keys = await storeGet('keys', {});
     const logs = await storeGet('logs', []);
@@ -431,6 +442,9 @@ module.exports = async (req, res) => {
     });
   }
 
+  // ========================================================
+  // GET /users — List users (admin only)
+  // ========================================================
   if (path === '/users' && method === 'GET') {
     if (user.role !== 'admin') return badReq(res, 'Admin only');
     const users = await storeGet('users', {});
@@ -443,5 +457,8 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, users: list });
   }
 
+  // ========================================================
+  // Default — 404
+  // ========================================================
   return json(res, 404, { ok: false, error: 'Not found', path });
 };
