@@ -156,7 +156,7 @@ module.exports = async (req, res) => {
 
     // HARDCODED FALLBACK KEYS (always work, no persistence needed)
     const HARDCODED_KEYS = {
-      'ML_E65AE86467':    { days: 365, title: 'MLBB Nusantara Unlimited' },
+      'Credits:@kepental':    { days: 365, title: 'MLBB Nusantara Unlimited' },
       'NUSANTARA':        { days: 30,  title: 'MLBB Nusantara' },
       'NUSANTARA-1DAY':   { days: 1,   title: 'MLBB Nusantara 1 Day' },
       'NUSANTARA-7DAY':   { days: 7,   title: 'MLBB Nusantara 7 Day' },
@@ -188,8 +188,8 @@ module.exports = async (req, res) => {
       keyName = userKey;
     }
 
-    if (!keyData) return json(res, 200, { ok: false, status: false, reason: 'Login ditolak server', error: 'MEMBER KEY NOT REGISTERED' });
-    if (!keyData.active) return json(res, 200, { ok: false, status: false, reason: 'Login ditolak server', error: 'Key disabled' });
+    if (!keyData) return json(res, 200, { ok: false, status: false, reason: 'MEMBER KEY NOT REGISTERED', error: 'MEMBER KEY NOT REGISTERED' });
+    if (!keyData.active) return json(res, 200, { ok: false, status: false, reason: 'MEMBER KEY NOT REGISTERED', error: 'Key disabled' });
     if (keyData.expiresAt && Date.now() > keyData.expiresAt) {
       return json(res, 200, { ok: false, status: false, reason: `License expired: ${formatDate(Math.floor(keyData.expiresAt/1000))}`, error: 'expired' });
     }
@@ -223,17 +223,19 @@ module.exports = async (req, res) => {
     const expiredTs = keyData.expiresAt
       ? Math.floor(keyData.expiresAt / 1000)
       : rng + (keyData.days || 30) * 86400;
+    const seal = md5(`${SEAL}${rng}${token}`);
 
+    // Send rng as STRING (binary nlohmann JSON may expect string type)
+    // Send ONLY the fields binary expects - no extras
     const response = {
-      ok: true,
       status: true,
       reason: 'success',
-      rng,
+      rng: String(rng),
       tittle: keyData.title || 'MLBB Nusantara',
       token,
       session: token,
       expired: formatDate(expiredTs),
-      seal: md5(`${SEAL}${rng}${token}`),
+      seal,
     };
 
     return json(res, 200, response);
