@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "name": "nusantara-mlbb-api",
+  "builds": [
+    {
+      "src": "api/index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/index.js" },
+    { "src": "/(.*)", "dest": "/api/index.js" }
+  ],
+  "outputDirectory": "public",
+  "env": {
+    "API_KEY": "NCZ_7fK9xP2mQ8vL4sR6nT1zW5cB"
+  }
+}

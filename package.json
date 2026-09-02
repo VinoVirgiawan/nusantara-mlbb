@@ -1,0 +1,21 @@
+{
+  "name": "nusantara-mlbb-api",
+  "version": "2.1.88",
+  "description": "MLBB Auth & Admin API — Nusantara.ID",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@vercel/kv": "^2.0.0"
+  },
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod",
+    "test:auth": "curl -s -X POST -d 'game=MLBB&user_key=ML_E65AE86467&serial=TEST001' http://localhost:3000/api/auth | python3 -m json.tool",
+    "test:register": "curl -s -X POST -d 'username=admin&password=admin123&displayName=Admin' http://localhost:3000/api/register | python3 -m json.tool"
+  },
+  "keywords": ["mlbb", "nusantara", "auth", "api", "admin"],
+  "author": "Nusantara.ID",
+  "license": "MIT"
+}
