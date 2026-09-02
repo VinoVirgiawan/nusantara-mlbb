@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nusantara.ID — MLBB Auth Admin</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f1117;--card:#1a1d27;--card2:#232738;--accent:#6c5ce7;--accent2:#a29bfe;--green:#00b894;--red:#e17055;--yellow:#fdcb6e;--text:#dfe6e9;--text2:#b2bec3;--border:#2d3142;--input:#232738}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+a{color:var(--accent2);text-decoration:none}
+.container{max-width:1100px;margin:0 auto;padding:20px}
+
+/* Header */
+.header{display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:24px}
+.header h1{font-size:20px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header .user-info{display:flex;align-items:center;gap:12px}
+.header .user-info span{color:var(--text2);font-size:14px}
+.btn{padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:.2s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent2)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-danger:hover{opacity:.8}
+.btn-success{background:var(--green);color:#fff}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Auth Forms */
+.auth-wrap{display:flex;justify-content:center;align-items:center;min-height:90vh}
+.auth-card{background:var(--card);border-radius:16px;padding:40px;width:400px;border:1px solid var(--border)}
+.auth-card h2{text-align:center;margin-bottom:24px;font-size:22px}
+.auth-card .subtitle{text-align:center;color:var(--text2);margin-bottom:24px;font-size:14px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;color:var(--text2);margin-bottom:6px;font-weight:500}
+.form-group input,.form-group select{width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--input);color:var(--text);font-size:14px;outline:none;transition:.2s}
+.form-group input:focus{border-color:var(--accent)}
+.form-row{display:flex;gap:12px}
+.form-row .form-group{flex:1}
+.auth-card .btn{width:100%;padding:12px;margin-top:8px;font-size:15px}
+.auth-card .switch{text-align:center;margin-top:16px;font-size:13px;color:var(--text2)}
+.error-msg{color:var(--red);font-size:13px;margin-top:8px;text-align:center;display:none}
+
+/* Dashboard */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:var(--card);border-radius:12px;padding:20px;border:1px solid var(--border)}
+.stat-card .label{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+.stat-card .value{font-size:28px;font-weight:700;margin-top:4px}
+.stat-card.green .value{color:var(--green)}
+.stat-card.blue .value{color:var(--accent2)}
+.stat-card.yellow .value{color:var(--yellow)}
+.stat-card.red .value{color:var(--red)}
+
+/* Table */
+.panel{background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden;margin-bottom:24px}
+.panel-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)}
+.panel-header h3{font-size:16px}
+.panel-body{padding:0}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:12px 16px;font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;background:var(--card2);font-weight:600}
+td{padding:12px 16px;font-size:13px;border-top:1px solid var(--border)}
+tr:hover{background:var(--card2)}
+.badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-green{background:rgba(0,184,148,.15);color:var(--green)}
+.badge-red{background:rgba(225,112,85,.15);color:var(--red)}
+.badge-blue{background:rgba(108,92,231,.15);color:var(--accent2)}
+.empty{text-align:center;padding:40px;color:var(--text2)}
+
+/* Modal */
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:none;justify-content:center;align-items:center;z-index:999}
+.modal-overlay.active{display:flex}
+.modal{background:var(--card);border-radius:16px;padding:30px;width:450px;max-width:95vw;border:1px solid var(--border)}
+.modal h3{margin-bottom:20px}
+.modal .btn-row{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+
+/* Nav Tabs */
+.tabs{display:flex;gap:4px;margin-bottom:24px;border-bottom:1px solid var(--border);padding-bottom:0}
+.tab{padding:10px 20px;cursor:pointer;font-size:14px;color:var(--text2);border-bottom:2px solid transparent;transition:.2s;font-weight:500}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent2);border-bottom-color:var(--accent2)}
+
+/* Log entry */
+.log-entry{display:flex;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px;align-items:center}
+.log-entry:last-child{border-bottom:none}
+.log-time{color:var(--text2);white-space:nowrap;font-size:12px;min-width:140px}
+.log-key{color:var(--accent2);font-weight:600;min-width:120px}
+.log-ip{color:var(--text2);min-width:100px}
+.log-serial{color:var(--text);flex:1}
+
+/* Responsive */
+@media(max-width:768px){
+  .container{padding:12px}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .form-row{flex-direction:column;gap:0}
+  table{font-size:12px}
+  th,td{padding:8px 10px}
+  .auth-card{width:100%;margin:12px}
+}
+</style>
+</head>
+<body>
+
+<!-- ======================== AUTH SCREEN ======================== -->
+<div id="authScreen" class="auth-wrap">
+<div class="auth-card">
+  <h2>🎮 Nusantara.ID</h2>
+  <p class="subtitle">MLBB Auth Admin Panel</p>
+
+  <!-- Register Form -->
+  <div id="registerForm">
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="regUser" placeholder="min 3 karakter" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Display Name</label>
+      <input type="text" id="regDisplay" placeholder="Nama tampilan">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="regPass" placeholder="min 4 karakter" autocomplete="new-password">
+    </div>
+    <button class="btn btn-primary" onclick="doRegister()">Register & Login</button>
+    <p class="switch">Sudah punya akun? <a href="#" onclick="showLogin()">Login</a></p>
+    <p class="error-msg" id="regError"></p>
+  </div>
+
+  <!-- Login Form -->
+  <div id="loginForm" style="display:none">
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="loginUser" placeholder="Username" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">Login</button>
+    <p class="switch">Belum punya akun? <a href="#" onclick="showRegister()">Register</a></p>
+    <p class="error-msg" id="loginError"></p>
+  </div>
+</div>
+</div>
+
+<!-- ======================== DASHBOARD ======================== -->
+<div id="dashboard" class="container" style="display:none">
+  <div class="header">
+    <h1>🎮 Nusantara.ID — MLBB Admin</h1>
+    <div class="user-info">
+      <span id="userDisplay"></span>
+      <button class="btn btn-ghost btn-sm" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="keys" onclick="switchTab('keys')">🔑 Keys</div>
+    <div class="tab" data-tab="logs" onclick="switchTab('logs')">📊 Connections</div>
+    <div class="tab" data-tab="users" onclick="switchTab('users')">👥 Users</div>
+  </div>
+
+  <!-- ======================== KEYS TAB ======================== -->
+  <div id="tab-keys">
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h3>🔑 License Keys</h3>
+        <button class="btn btn-primary btn-sm" onclick="openCreateKey()">+ Buat Key</button>
+      </div>
+      <div class="panel-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Key Name</th>
+              <th>Title</th>
+              <th>Days</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Expires</th>
+              <th>Uses</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="keysBody"></tbody>
+        </table>
+        <div class="empty" id="keysEmpty" style="display:none">Belum ada key. Klik "+ Buat Key" untuk membuat.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================== LOGS TAB ======================== -->
+  <div id="tab-logs" style="display:none">
+    <div class="panel">
+      <div class="panel-header">
+        <h3>📊 Connection Logs</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="loadLogs()">Refresh</button>
+          <button class="btn btn-danger btn-sm" onclick="clearLogs()">Clear All</button>
+        </div>
+      </div>
+      <div class="panel-body" id="logsBody">
+        <div class="empty" id="logsEmpty">Belum ada connection.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================== USERS TAB ======================== -->
+  <div id="tab-users" style="display:none">
+    <div class="panel">
+      <div class="panel-header">
+        <h3>👥 Registered Users</h3>
+      </div>
+      <div class="panel-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Display Name</th>
+              <th>Role</th>
+              <th>Registered</th>
+            </tr>
+          </thead>
+          <tbody id="usersBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======================== CREATE KEY MODAL ======================== -->
+<div class="modal-overlay" id="createKeyModal">
+<div class="modal">
+  <h3>🔑 Buat Key Baru</h3>
+  <div class="form-group">
+    <label>Key Name (ID)</label>
+    <input type="text" id="newKeyName" placeholder="contoh: ML_E65AE86467">
+  </div>
+  <div class="form-group">
+    <label>Title</label>
+    <input type="text" id="newKeyTitle" placeholder="contoh: MLBB Nusantara Unlimited">
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>Expire (hari)</label>
+      <input type="number" id="newKeyDays" value="30" min="1" max="9999">
+    </div>
+    <div class="form-group">
+      <label>Quick Select</label>
+      <select id="quickExpiry" onchange="applyQuickExpiry()">
+        <option value="">Custom</option>
+        <option value="1">1 Hari</option>
+        <option value="7">7 Hari</option>
+        <option value="14">14 Hari</option>
+        <option value="30">30 Hari</option>
+        <option value="90">90 Hari</option>
+        <option value="365">1 Tahun</option>
+        <option value="999">Unlimited</option>
+      </select>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-ghost" onclick="closeModal('createKeyModal')">Batal</button>
+    <button class="btn btn-primary" onclick="createKey()">Buat Key</button>
+  </div>
+</div>
+</div>
+
+<!-- ======================== EDIT KEY MODAL ======================== -->
+<div class="modal-overlay" id="editKeyModal">
+<div class="modal">
+  <h3>✏️ Edit Key</h3>
+  <input type="hidden" id="editKeyId">
+  <div class="form-group">
+    <label>Title</label>
+    <input type="text" id="editKeyTitle">
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>Expire (hari)</label>
+      <input type="number" id="editKeyDays" min="1" max="9999">
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="editKeyActive">
+        <option value="true">Active</option>
+        <option value="false">Disabled</option>
+      </select>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-danger btn-sm" onclick="deleteKey(document.getElementById('editKeyId').value)">🗑 Hapus</button>
+    <button class="btn btn-ghost" onclick="closeModal('editKeyModal')">Batal</button>
+    <button class="btn btn-primary" onclick="updateKey()">Simpan</button>
+  </div>
+</div>
+</div>
+
+<!-- ======================== JS ======================== -->
+<script>
+const API = window.location.origin;
+let currentUser = null;
+
+// ============ API Helper ============
+async function api(path, method = 'GET', body = null) {
+  const opts = { method, headers: {} };
+  if (body) {
+    opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    opts.body = Object.entries(body).map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+  }
+  const r = await fetch(API + path, opts);
+  return r.json();
+}
+
+// ============ Auth ============
+function showLogin() {
+  document.getElementById('registerForm').style.display = 'none';
+  document.getElementById('loginForm').style.display = 'block';
+}
+function showRegister() {
+  document.getElementById('registerForm').style.display = 'block';
+  document.getElementById('loginForm').style.display = 'none';
+}
+
+async function doRegister() {
+  const user = document.getElementById('regUser').value;
+  const display = document.getElementById('regDisplay').value;
+  const pass = document.getElementById('regPass').value;
+  const err = document.getElementById('regError');
+  err.style.display = 'none';
+
+  const r = await api('/api/register', 'POST', { username: user, displayName: display, password: pass });
+  if (!r.ok) { err.textContent = r.error; err.style.display = 'block'; return; }
+  currentUser = r.user;
+  showDashboard();
+}
+
+async function doLogin() {
+  const user = document.getElementById('loginUser').value;
+  const pass = document.getElementById('loginPass').value;
+  const err = document.getElementById('loginError');
+  err.style.display = 'none';
+
+  const r = await api('/api/login', 'POST', { username: user, password: pass });
+  if (!r.ok) { err.textContent = r.error; err.style.display = 'block'; return; }
+  currentUser = r.user;
+  showDashboard();
+}
+
+async function doLogout() {
+  await api('/api/logout', 'POST');
+  currentUser = null;
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('authScreen').style.display = 'flex';
+}
+
+async function checkSession() {
+  try {
+    const r = await api('/api/me');
+    if (r.ok) { currentUser = r.user; showDashboard(); return; }
+  } catch(e) {}
+  document.getElementById('authScreen').style.display = 'flex';
+}
+
+// ============ Dashboard ============
+function showDashboard() {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('userDisplay').textContent = `👤 ${currentUser.displayName || currentUser.username} (${currentUser.role})`;
+  loadStats();
+  loadKeys();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+  ['keys','logs','users'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === tab ? 'block' : 'none';
+  });
+  if (tab === 'logs') loadLogs();
+  if (tab === 'users') loadUsers();
+}
+
+// ============ Stats ============
+async function loadStats() {
+  const r = await api('/api/stats');
+  if (!r.ok) return;
+  const s = r.stats;
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card blue"><div class="label">Total Keys</div><div class="value">${s.totalKeys}</div></div>
+    <div class="stat-card green"><div class="label">Active Keys</div><div class="value">${s.activeKeys}</div></div>
+    <div class="stat-card yellow"><div class="label">Connections Hari Ini</div><div class="value">${s.todayConnections}</div></div>
+    <div class="stat-card red"><div class="label">Total Connections</div><div class="value">${s.totalConnections}</div></div>
+  `;
+}
+
+// ============ Keys ============
+async function loadKeys() {
+  const r = await api('/api/keys');
+  const body = document.getElementById('keysBody');
+  const empty = document.getElementById('keysEmpty');
+  if (!r.ok || !r.keys.length) { body.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  body.innerHTML = r.keys.map(k => {
+    const expired = k.expiresAt ? new Date(k.expiresAt).toLocaleDateString('id-ID') : '-';
+    const created = k.createdAt ? new Date(k.createdAt).toLocaleDateString('id-ID') : '-';
+    return `<tr>
+      <td><strong>${esc(k.name)}</strong></td>
+      <td>${esc(k.title)}</td>
+      <td>${k.days}</td>
+      <td>${k.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Disabled</span>'}</td>
+      <td>${created}</td>
+      <td>${expired}</td>
+      <td>${k.useCount || 0}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="openEditKey('${esc(k.id)}','${esc(k.title)}',${k.days},'${k.active}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteKey('${esc(k.id)}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openCreateKey() {
+  document.getElementById('newKeyName').value = '';
+  document.getElementById('newKeyTitle').value = '';
+  document.getElementById('newKeyDays').value = '30';
+  document.getElementById('quickExpiry').value = '';
+  document.getElementById('createKeyModal').classList.add('active');
+}
+
+function applyQuickExpiry() {
+  const v = document.getElementById('quickExpiry').value;
+  if (v) document.getElementById('newKeyDays').value = v;
+}
+
+async function createKey() {
+  const name = document.getElementById('newKeyName').value.trim();
+  const title = document.getElementById('newKeyTitle').value.trim();
+  const days = document.getElementById('newKeyDays').value;
+  if (!name) return alert('Key name wajib diisi');
+
+  const r = await api('/api/keys', 'POST', { name, title, days });
+  if (!r.ok) return alert(r.error);
+  closeModal('createKeyModal');
+  loadKeys(); loadStats();
+}
+
+function openEditKey(id, title, days, active) {
+  document.getElementById('editKeyId').value = id;
+  document.getElementById('editKeyTitle').value = title;
+  document.getElementById('editKeyDays').value = days;
+  document.getElementById('editKeyActive').value = active;
+  document.getElementById('editKeyModal').classList.add('active');
+}
+
+async function updateKey() {
+  const id = document.getElementById('editKeyId').value;
+  const title = document.getElementById('editKeyTitle').value;
+  const days = document.getElementById('editKeyDays').value;
+  const active = document.getElementById('editKeyActive').value;
+
+  const r = await fetch(API + '/api/keys?id=' + id, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `title=${encodeURIComponent(title)}&days=${days}&active=${active}`
+  });
+  const j = await r.json();
+  if (!j.ok) return alert(j.error);
+  closeModal('editKeyModal');
+  loadKeys(); loadStats();
+}
+
+async function deleteKey(id) {
+  if (!confirm(`Hapus key "${id}"?`)) return;
+  const r = await fetch(API + '/api/keys?id=' + id, { method: 'DELETE' });
+  const j = await r.json();
+  if (!j.ok) return alert(j.error);
+  loadKeys(); loadStats();
+}
+
+// ============ Logs ============
+async function loadLogs() {
+  const r = await api('/api/logs?limit=200');
+  const body = document.getElementById('logsBody');
+  const empty = document.getElementById('logsEmpty');
+  if (!r.ok || !r.logs.length) { body.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  body.innerHTML = r.logs.map(l => `
+    <div class="log-entry">
+      <span class="log-time">${new Date(l.time).toLocaleString('id-ID')}</span>
+      <span class="log-key">${esc(l.key)}</span>
+      <span class="log-ip">${esc(l.ip)}</span>
+      <span class="log-serial">${esc(l.serial)}</span>
+    </div>
+  `).join('');
+}
+
+async function clearLogs() {
+  if (!confirm('Hapus semua logs?')) return;
+  await fetch(API + '/api/logs', { method: 'DELETE' });
+  loadLogs(); loadStats();
+}
+
+// ============ Users ============
+async function loadUsers() {
+  const r = await api('/api/users');
+  const body = document.getElementById('usersBody');
+  if (!r.ok) return;
+  body.innerHTML = r.users.map(u => `
+    <tr>
+      <td><strong>${esc(u.username)}</strong></td>
+      <td>${esc(u.displayName)}</td>
+      <td><span class="badge badge-blue">${u.role}</span></td>
+      <td>${u.createdAt ? new Date(u.createdAt).toLocaleDateString('id-ID') : '-'}</td>
+    </tr>
+  `).join('');
+}
+
+// ============ Helpers ============
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
+});
+
+// Enter key handlers
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    if (document.getElementById('regUser') === document.activeElement) doRegister();
+    if (document.getElementById('loginUser') === document.activeElement) doLogin();
+  }
+});
+
+// Init
+checkSession();
+</script>
+</body>
+</html>
