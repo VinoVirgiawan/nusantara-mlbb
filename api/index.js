@@ -147,16 +147,17 @@ module.exports = async (req, res) => {
 
     console.log(`[AUTH] key=${userKey} serial=${serial}`);
 
-    if (!game && !userKey) return json(res, 200, { ok: false, status: false, reason: 'INVALID PARAMETER', error: 'Missing game or user_key' });
-    if (!userKey)           return json(res, 200, { ok: false, status: false, reason: 'Key kosong', error: 'Key kosong' });
-    if (!serial)            return json(res, 200, { ok: false, status: false, reason: 'Device ID kosong', error: 'Device ID kosong' });
+    if (!game && !userKey) return json(res, 200, { status: false, reason: "INVALID PARAMETER" });
+    if (!userKey)           return json(res, 200, { status: false, reason: "Key kosong" });
+    if (!serial)            return json(res, 200, { status: false, reason: "Device ID kosong" });
 
     // Load keys
     const keys = await storeGet('keys', {});
 
     // HARDCODED FALLBACK KEYS (always work, no persistence needed)
     const HARDCODED_KEYS = {
-      'Credits:@kepental':    { days: 365, title: 'MLBB Nusantara Unlimited' },
+      'ML_E65AE86467':    { days: 365, title: 'MLBB Nusantara Unlimited' },
+      'Credits:@kepental': { days: 365, title: 'Credits @kepental' },
       'NUSANTARA':        { days: 30,  title: 'MLBB Nusantara' },
       'NUSANTARA-1DAY':   { days: 1,   title: 'MLBB Nusantara 1 Day' },
       'NUSANTARA-7DAY':   { days: 7,   title: 'MLBB Nusantara 7 Day' },
@@ -188,10 +189,10 @@ module.exports = async (req, res) => {
       keyName = userKey;
     }
 
-    if (!keyData) return json(res, 200, { ok: false, status: false, reason: 'MEMBER KEY NOT REGISTERED', error: 'MEMBER KEY NOT REGISTERED' });
-    if (!keyData.active) return json(res, 200, { ok: false, status: false, reason: 'MEMBER KEY NOT REGISTERED', error: 'Key disabled' });
+    if (!keyData) return json(res, 200, { status: false, reason: "MEMBER KEY NOT REGISTERED" });
+    if (!keyData.active) return json(res, 200, { status: false, reason: "Login ditolak server" });
     if (keyData.expiresAt && Date.now() > keyData.expiresAt) {
-      return json(res, 200, { ok: false, status: false, reason: `License expired: ${formatDate(Math.floor(keyData.expiresAt/1000))}`, error: 'expired' });
+      return json(res, 200, { status: false, reason: 'License expired' });
     }
 
     // Log connection
@@ -217,7 +218,7 @@ module.exports = async (req, res) => {
     keys[keyName] = keyData;
     await storeSet('keys', keys);
 
-    // Generate response (migoreng.my.id format)
+    // Generate response (migoreng.my.id exact format)
     const rng = Math.floor(Date.now() / 1000);
     const token = md5(`${rng}${userKey}${randToken()}`);
     const expiredTs = keyData.expiresAt
@@ -225,20 +226,22 @@ module.exports = async (req, res) => {
       : rng + (keyData.days || 30) * 86400;
     const seal = md5(`${SEAL}${rng}${token}`);
 
-    // Send rng as STRING (binary nlohmann JSON may expect string type)
-    // Send ONLY the fields binary expects - no extras
-    const response = {
+    // EXACT format binary expects - no extras
+    const body = JSON.stringify({
       status: true,
-      reason: 'success',
-      rng: String(rng),
-      tittle: keyData.title || 'MLBB Nusantara',
-      token,
-      session: token,
+      reason: "success",
+      rng: rng,
+      tittle: keyData.title || "MLBB Nusantara",
+      token: token,
       expired: formatDate(expiredTs),
-      seal,
-    };
+      seal: seal
+    });
 
-    return json(res, 200, response);
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*"
+    });
+    return res.end(body);
   }
 
   // ========================================================
