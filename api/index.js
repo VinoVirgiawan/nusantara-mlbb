@@ -1,33 +1,26 @@
 // api/index.js — Nusantara MLBB Auth & Admin API
-// Handles: auth, register, login, keys CRUD, logs, connections
-// Storage: Vercel KV (Redis) with in-memory fallback
-
 const crypto = require('crypto');
 
-// ============================================================
-// STORAGE — Vercel KV with fallback
-// ============================================================
 let kv = null;
-try { kv = require('@vercel/kv'); } catch (e) { /* fallback to memory */ }
+try { kv = require('@vercel/kv'); } catch (e) { }
 
-// In-memory fallback (resets on cold start)
 const memStore = { users: {}, keys: {}, logs: [], connections: [] };
 
 async function storeGet(key, fallback = null) {
   if (kv && kv.get) {
-    try { const v = await kv.get(key); return v ?? fallback; } catch (e) { /* ignore */ }
+    try { const v = await kv.get(key); return v ?? fallback; } catch (e) { }
   }
   return memStore[key] ?? fallback;
 }
 async function storeSet(key, value) {
   if (kv && kv.set) {
-    try { await kv.set(key, value); return; } catch (e) { /* ignore */ }
+    try { await kv.set(key, value); return; } catch (e) { }
   }
   memStore[key] = value;
 }
 async function storeDel(key) {
   if (kv && kv.del) {
-    try { await kv.del(key); return; } catch (e) { /* ignore */ }
+    try { await kv.del(key); return; } catch (e) { }
   }
   delete memStore[key];
 }
@@ -100,7 +93,6 @@ module.exports = async (req, res) => {
   const path = url.pathname.replace(/^\/api/, '') || '/';
   const method = req.method;
 
-  // CORS preflight
   if (method === 'OPTIONS') {
     res.writeHead(200, {
       'Access-Control-Allow-Origin': '*',
@@ -120,18 +112,39 @@ module.exports = async (req, res) => {
     }
   }
 
-  if (path === '/auth') {
+  if (path === '/auth' || path === '/connect') {
     const { params } = await parseBody(req);
-    const game     = params.game || '';
-    const userKey  = params.user_key || params.key || params.login_key || '';
-    const serial   = params.serial || params.device_id || params.java_json_device_id || '';
-    const package  = params.package_name || '';
+    const game = params.game || '';
+    const userKey = params.user_key || params.key || params.login_key || '';
+    const serial = params.serial || params.device_id || params.java_json_device_id || '';
+    const package = params.package_name || '';
 
     console.log(`[AUTH] key=${userKey} serial=${serial}`);
 
-    if (!game && !userKey) return json(res, 200, { status: false, reason: 'INVALID PARAMETER' });
-    if (!userKey)           return json(res, 200, { status: false, reason: 'Key kosong' });
-    if (!serial)            return json(res, 200, { status: false, reason: 'Device ID kosong' });
+    if (!game && !userKey) {
+      return json(res, 200, {
+        ok: false,
+        status: false,
+        reason: 'INVALID PARAMETER',
+        error: 'Missing game or user_key'
+      });
+    }
+    if (!userKey) {
+      return json(res, 200, {
+        ok: false,
+        status: false,
+        reason: 'Key kosong',
+        error: 'Missing user_key'
+      });
+    }
+    if (!serial) {
+      return json(res, 200, {
+        ok: false,
+        status: false,
+        reason: 'Device ID kosong',
+        error: 'Missing serial/device_id'
+      });
+    }
 
     const keys = await storeGet('keys', {});
 
@@ -143,13 +156,31 @@ module.exports = async (req, res) => {
       }
     }
 
-    if (!keyData) return json(res, 200, { status: false, reason: 'Login ditolak server' });
-    if (!keyData.active) return json(res, 200, { status: false, reason: 'Login ditolak server' });
+    if (!keyData) {
+      return json(res, 200, {
+        ok: false,
+        status: false,
+        reason: 'Login ditolak server',
+        error: 'Invalid key'
+      });
+    }
+    if (!keyData.active) {
+      return json(res, 200, {
+        ok: false,
+        status: false,
+        reason: 'Login ditolak server',
+        error: 'Key is inactive'
+      });
+    }
     if (keyData.expiresAt && Date.now() > keyData.expiresAt) {
-      return json(res, 200, { status: false, reason: `License expired: ${formatDate(Math.floor(keyData.expiresAt/1000))}` });
+      return json(res, 200, {
+        ok: false,
+        status: false,
+        reason: `License expired: ${formatDate(Math.floor(keyData.expiresAt/1000))}`,
+        error: 'License expired'
+      });
     }
 
-    // Log connection
     const conn = {
       id: randToken(),
       key: keyName,
@@ -165,14 +196,12 @@ module.exports = async (req, res) => {
     if (logs.length > 5000) logs.length = 5000;
     await storeSet('logs', logs);
 
-    // Update key usage
     keyData.lastUsed = Date.now();
     keyData.usedBy = serial;
     keyData.useCount = (keyData.useCount || 0) + 1;
     keys[keyName] = keyData;
     await storeSet('keys', keys);
 
-    // Generate response (migoreng.my.id format)
     const rng = Math.floor(Date.now() / 1000);
     const token = md5(`${rng}${userKey}${randToken()}`);
     const expiredTs = keyData.expiresAt
@@ -180,13 +209,35 @@ module.exports = async (req, res) => {
       : rng + (keyData.days || 30) * 86400;
 
     const response = {
+      ok: true,
       status: true,
       reason: 'success',
-      rng,
+      message: 'connected',
+      rng: rng,
       tittle: keyData.title || 'MLBB Nusantara',
-      token,
+      token: token,
       expired: formatDate(expiredTs),
+      expiresAt: expiredTs * 1000,
+      expires_ts: expiredTs,
       seal: md5(`${SEAL}${rng}${token}`),
+      data: {
+        server: {
+          name: 'main_hook',
+          code: 'main-hook'
+        },
+        key: {
+          expiresAt: keyData.expiresAt || 0,
+          uses: keyData.useCount || 0,
+          maxUses: 0,
+          maxDevices: 0,
+          devicesCount: 1
+        },
+        url: null,
+        token: token,
+        rng: rng,
+        tittle: keyData.title || 'MLBB',
+        expired: formatDate(expiredTs)
+      }
     };
 
     return json(res, 200, response);
@@ -345,6 +396,7 @@ module.exports = async (req, res) => {
 
     return json(res, 200, { ok: true, deleted: id });
   }
+
   if (path === '/logs' && method === 'GET') {
     const logs = await storeGet('logs', []);
     const limit = parseInt(url.searchParams.get('limit')) || 100;
