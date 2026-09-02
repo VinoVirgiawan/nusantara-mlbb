@@ -121,16 +121,16 @@ module.exports = async (req, res) => {
     const keys = await storeGet('keys', {});
 
     const HARDCODED_KEYS = {
-      'ML_E65AE86467':    { days: 365, title: 'MLBB Nusantara Unlimited' },
-      'Credits:@kepental': { days: 365, title: 'Credits @kepental' },
-      'NUSANTARA':        { days: 30,  title: 'MLBB Nusantara' },
-      'NUSANTARA-1DAY':   { days: 1,   title: 'MLBB Nusantara 1 Day' },
-      'NUSANTARA-7DAY':   { days: 7,   title: 'MLBB Nusantara 7 Day' },
-      'NUSANTARA-30DAY':  { days: 30,  title: 'MLBB Nusantara 30 Day' },
-      'PREMIUM':          { days: 90,  title: 'MLBB Premium' },
-      'TEST':             { days: 365, title: 'MLBB Test' },
-      'ADMIN':            { days: 999, title: 'MLBB Admin' },
-      'devd3v':           { days: 999, title: 'MLBB Developer' },
+      'ML_E65AE86467':    { days: 365, title: ' MLBB Nusantara Unlimited' },
+      'Credits:@kepental': { days: 365, title: ' Credits @kepental' },
+      'NUSANTARA':        { days: 30,  title: ' MLBB Nusantara' },
+      'NUSANTARA-1DAY':   { days: 1,   title: ' MLBB Nusantara 1 Day' },
+      'NUSANTARA-7DAY':   { days: 7,   title: ' MLBB Nusantara 7 Day' },
+      'NUSANTARA-30DAY':  { days: 30,  title: ' MLBB Nusantara 30 Day' },
+      'PREMIUM':          { days: 90,  title: ' MLBB Premium' },
+      'TEST':             { days: 365, title: ' MLBB Test' },
+      'ADMIN':            { days: 999, title: ' MLBB Admin' },
+      'devd3v':           { days: 999, title: ' MLBB Developer' },
     };
 
     let keyData = null;
@@ -202,7 +202,6 @@ module.exports = async (req, res) => {
         rng: rng,
         tittle: keyData.title || "MLBB Nusantara",
         instance: "Instance",
-        session: token,
         expired: datte
       }
     });
