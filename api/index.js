@@ -1,23 +1,23 @@
 const crypto = require('crypto');
 let kv = null;
-try { kv = require('@vercel/kv'); } catch (e) { /* fallback to memory */ }
+try { kv = require('@vercel/kv'); } catch (e) {}
 const memStore = { users: {}, keys: {}, logs: [], connections: [] };
 
 async function storeGet(key, fallback = null) {
   if (kv && kv.get) {
-    try { const v = await kv.get(key); return v ?? fallback; } catch (e) { /* ignore */ }
+    try { const v = await kv.get(key); return v ?? fallback; } catch (e) {}
   }
   return memStore[key] ?? fallback;
 }
 async function storeSet(key, value) {
   if (kv && kv.set) {
-    try { await kv.set(key, value); return; } catch (e) { /* ignore */ }
+    try { await kv.set(key, value); return; } catch (e) {}
   }
   memStore[key] = value;
 }
 async function storeDel(key) {
   if (kv && kv.del) {
-    try { await kv.del(key); return; } catch (e) { /* ignore */ }
+    try { await kv.del(key); return; } catch (e) {}
   }
   delete memStore[key];
 }
@@ -86,7 +86,6 @@ module.exports = async (req, res) => {
   const path = url.pathname.replace(/^\/api/, '') || '/';
   const method = req.method;
 
-  
   if (method === 'OPTIONS') {
     res.writeHead(200, {
       'Access-Control-Allow-Origin': '*',
@@ -96,9 +95,6 @@ module.exports = async (req, res) => {
     return res.end();
   }
 
-  
-  
-  
   if (path === '/' || path === '') {
     try {
       const fs = require('fs');
@@ -109,9 +105,6 @@ module.exports = async (req, res) => {
     }
   }
 
-  
-  
-  
   if (path === '/auth') {
     const { params } = await parseBody(req);
     const game     = params.game || '';
@@ -125,10 +118,8 @@ module.exports = async (req, res) => {
     if (!userKey)           return json(res, 200, { status: false, reason: "Key kosong" });
     if (!serial)            return json(res, 200, { status: false, reason: "Device ID kosong" });
 
-    
     const keys = await storeGet('keys', {});
 
-    
     const HARDCODED_KEYS = {
       'ML_E65AE86467':    { days: 365, title: 'MLBB Nusantara Unlimited' },
       'Credits:@kepental': { days: 365, title: 'Credits @kepental' },
@@ -142,7 +133,6 @@ module.exports = async (req, res) => {
       'devd3v':           { days: 999, title: 'MLBB Developer' },
     };
 
-    
     let keyData = null;
     let keyName = null;
     for (const [name, data] of Object.entries(keys)) {
@@ -169,7 +159,6 @@ module.exports = async (req, res) => {
       return json(res, 200, { status: false, reason: 'License expired' });
     }
 
-    
     const conn = {
       id: randToken(),
       key: keyName,
@@ -185,14 +174,12 @@ module.exports = async (req, res) => {
     if (logs.length > 5000) logs.length = 5000;
     await storeSet('logs', logs);
 
-    
     keyData.lastUsed = Date.now();
     keyData.usedBy = serial;
     keyData.useCount = (keyData.useCount || 0) + 1;
     keys[keyName] = keyData;
     await storeSet('keys', keys);
 
-    
     const rng = Math.floor(Date.now() / 1000);
     const token = md5(`${rng}${userKey}${randToken()}`);
     const expiredTs = keyData.expiresAt
@@ -207,7 +194,6 @@ module.exports = async (req, res) => {
     const mm = String(expDate.getMinutes()).padStart(2, '0');
     const datte = `${day} - ${month} - ${year} ${hh}:${mm}`;
 
-    
     const body = JSON.stringify({
       status: true,
       data: {
@@ -216,7 +202,6 @@ module.exports = async (req, res) => {
         rng: rng,
         tittle: keyData.title || "MLBB Nusantara",
         instance: "Instance",
-        session: token,
         expired: datte
       }
     });
@@ -228,15 +213,9 @@ module.exports = async (req, res) => {
     return res.end(body);
   }
 
-  
-  
-  
   const sessionId = getSession(req);
   const user = await getUser(sessionId);
 
-  
-  
-  
   if (path === '/register' && method === 'POST') {
     const { params } = await parseBody(req);
     const username = (params.username || '').trim();
@@ -259,7 +238,6 @@ module.exports = async (req, res) => {
     };
     await storeSet('users', users);
 
-    
     const sid = randToken();
     const sessions = await storeGet('sessions', {});
     sessions[sid] = username;
@@ -269,9 +247,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, user: { username, displayName, role: users[username].role } });
   }
 
-  
-  
-  
   if (path === '/login' && method === 'POST') {
     const { params } = await parseBody(req);
     const username = (params.username || '').trim();
@@ -290,9 +265,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, user: { username: u.username, displayName: u.displayName, role: u.role } });
   }
 
-  
-  
-  
   if (path === '/logout' && method === 'POST') {
     if (sessionId) {
       const sessions = await storeGet('sessions', {});
@@ -303,22 +275,13 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true });
   }
 
-  
-  
-  
   if (path === '/me' && method === 'GET') {
     if (!user) return badReq(res, 'Not logged in');
     return json(res, 200, { ok: true, user: { username: user.username, displayName: user.displayName, role: user.role } });
   }
 
-  
-  
-  
   if (!user) return badReq(res, 'Unauthorized — login dulu');
 
-  
-  
-  
   if (path === '/keys' && method === 'GET') {
     const keys = await storeGet('keys', {});
     const list = Object.entries(keys).map(([id, k]) => ({
@@ -338,9 +301,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, keys: list });
   }
 
-  
-  
-  
   if (path === '/keys' && method === 'POST') {
     const { params } = await parseBody(req);
     const name = (params.name || '').trim();
@@ -371,9 +331,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, key: keys[id] });
   }
 
-  
-  
-  
   if (path === '/keys' && method === 'PUT') {
     const id = url.searchParams.get('id');
     if (!id) return badReq(res, 'Key ID required');
@@ -397,9 +354,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, key: k });
   }
 
-  
-  
-  
   if (path === '/keys' && method === 'DELETE') {
     const id = url.searchParams.get('id');
     if (!id) return badReq(res, 'Key ID required');
@@ -413,9 +367,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, deleted: id });
   }
 
-  
-  
-  
   if (path === '/logs' && method === 'GET') {
     const logs = await storeGet('logs', []);
     const limit = parseInt(url.searchParams.get('limit')) || 100;
@@ -423,17 +374,11 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, total: logs.length, logs: logs.slice(offset, offset + limit) });
   }
 
-  
-  
-  
   if (path === '/logs' && method === 'DELETE') {
     await storeSet('logs', []);
     return json(res, 200, { ok: true, message: 'Logs cleared' });
   }
 
-  
-  
-  
   if (path === '/stats' && method === 'GET') {
     const keys = await storeGet('keys', {});
     const logs = await storeGet('logs', []);
@@ -456,9 +401,6 @@ module.exports = async (req, res) => {
     });
   }
 
-  
-  
-  
   if (path === '/users' && method === 'GET') {
     if (user.role !== 'admin') return badReq(res, 'Admin only');
     const users = await storeGet('users', {});
@@ -471,8 +413,5 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, users: list });
   }
 
-  
-  
-  
   return json(res, 404, { ok: false, error: 'Not found', path });
 };
