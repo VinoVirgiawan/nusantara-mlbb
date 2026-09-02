@@ -82,7 +82,7 @@ async function getUser(sessionId) {
   return users[userId] || null;
 }
 module.exports = async (req, res) => {
-  const url = new URL(req.url, 'http:
+  const url = new URL(req.url, 'http://localhost');
   const path = url.pathname.replace(/^\/api/, '') || '/';
   const method = req.method;
 
