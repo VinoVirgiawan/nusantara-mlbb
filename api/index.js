@@ -218,23 +218,32 @@ module.exports = async (req, res) => {
     keys[keyName] = keyData;
     await storeSet('keys', keys);
 
-    // Generate response (migoreng.my.id exact format)
+    // Generate response (EXACT migoreng.my.id format)
     const rng = Math.floor(Date.now() / 1000);
     const token = md5(`${rng}${userKey}${randToken()}`);
     const expiredTs = keyData.expiresAt
       ? Math.floor(keyData.expiresAt / 1000)
       : rng + (keyData.days || 30) * 86400;
-    const seal = md5(`${SEAL}${rng}${token}`);
 
-    // EXACT format binary expects - no extras
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = MONTHS_ID[now.getMonth() + 1];
+    const year = now.getFullYear();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const datte = `${day} - ${month} - ${year} ${hh}:${mm}`;
+
+    // EXACT format from real migoreng.my.id
     const body = JSON.stringify({
       status: true,
-      reason: "success",
-      rng: rng,
-      tittle: keyData.title || "MLBB Nusantara",
-      token: token,
-      expired: formatDate(expiredTs),
-      seal: seal
+      data: {
+        Datte: datte,
+        token: token,
+        rng: rng,
+        tittle: keyData.title || "MLBB Nusantara",
+        instance: "Instance",
+        expired: datte
+      }
     });
 
     res.writeHead(200, {
