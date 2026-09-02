@@ -154,13 +154,38 @@ module.exports = async (req, res) => {
     // Load keys
     const keys = await storeGet('keys', {});
 
-    // Search key by name
+    // HARDCODED FALLBACK KEYS (always work, no persistence needed)
+    const HARDCODED_KEYS = {
+      'ML_E65AE86467':    { days: 365, title: 'MLBB Nusantara Unlimited' },
+      'NUSANTARA':        { days: 30,  title: 'MLBB Nusantara' },
+      'NUSANTARA-1DAY':   { days: 1,   title: 'MLBB Nusantara 1 Day' },
+      'NUSANTARA-7DAY':   { days: 7,   title: 'MLBB Nusantara 7 Day' },
+      'NUSANTARA-30DAY':  { days: 30,  title: 'MLBB Nusantara 30 Day' },
+      'PREMIUM':          { days: 90,  title: 'MLBB Premium' },
+      'TEST':             { days: 365, title: 'MLBB Test' },
+      'ADMIN':            { days: 999, title: 'MLBB Admin' },
+      'devd3v':           { days: 999, title: 'MLBB Developer' },
+    };
+
+    // Search key by name (DB first, then hardcoded fallback)
     let keyData = null;
     let keyName = null;
     for (const [name, data] of Object.entries(keys)) {
       if (name === userKey || data.name === userKey) {
         keyData = data; keyName = name; break;
       }
+    }
+    // Fallback to hardcoded keys
+    if (!keyData && HARDCODED_KEYS[userKey]) {
+      const hk = HARDCODED_KEYS[userKey];
+      keyData = {
+        name: userKey,
+        title: hk.title,
+        days: hk.days,
+        active: true,
+        expiresAt: Date.now() + hk.days * 86400000,
+      };
+      keyName = userKey;
     }
 
     if (!keyData) return json(res, 200, { ok: false, status: false, reason: 'Login ditolak server', error: 'MEMBER KEY NOT REGISTERED' });
