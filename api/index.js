@@ -1,16 +1,8 @@
-// api/index.js — Nusantara MLBB Auth & Admin API
-// Handles: auth, register, login, keys CRUD, logs, connections
-// Storage: Vercel KV (Redis) with in-memory fallback
-
 const crypto = require('crypto');
 
-// ============================================================
-// STORAGE — Vercel KV with fallback
-// ============================================================
 let kv = null;
 try { kv = require('@vercel/kv'); } catch (e) { /* fallback to memory */ }
 
-// In-memory fallback (resets on cold start)
 const memStore = { users: {}, keys: {}, logs: [], connections: [] };
 
 async function storeGet(key, fallback = null) {
@@ -32,16 +24,10 @@ async function storeDel(key) {
   delete memStore[key];
 }
 
-// ============================================================
-// CONFIG
-// ============================================================
 const API_KEY = process.env.API_KEY || 'NCZ_7fK9xP2mQ8vL4sR6nT1zW5cB';
 const SEAL = crypto.createHash('md5').update(API_KEY).digest('hex');
 const MONTHS_ID = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
-// ============================================================
-// HELPERS
-// ============================================================
 function md5(str) { return crypto.createHash('md5').update(String(str)).digest('hex'); }
 function randToken() { return crypto.randomBytes(16).toString('hex'); }
 
@@ -85,9 +71,6 @@ function sendHTML(res, html) {
 
 function badReq(res, msg) { return json(res, 200, { ok: false, status: false, reason: msg, error: msg }); }
 
-// ============================================================
-// AUTH — Session from cookie/header
-// ============================================================
 function getSession(req) {
   const cookie = req.headers.cookie || '';
   const m = cookie.match(/session=([^;]+)/);
@@ -104,15 +87,11 @@ async function getUser(sessionId) {
   return users[userId] || null;
 }
 
-// ============================================================
-// ROUTES
-// ============================================================
 module.exports = async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const path = url.pathname.replace(/^\/api/, '') || '/';
   const method = req.method;
 
-  // CORS preflight
   if (method === 'OPTIONS') {
     res.writeHead(200, {
       'Access-Control-Allow-Origin': '*',
@@ -122,9 +101,6 @@ module.exports = async (req, res) => {
     return res.end();
   }
 
-  // ========================================================
-  // GET / → Serve admin panel
-  // ========================================================
   if (path === '/' || path === '') {
     try {
       const fs = require('fs');
@@ -135,9 +111,6 @@ module.exports = async (req, res) => {
     }
   }
 
-  // ========================================================
-  // POST /auth — MLBB Binary Auth Endpoint
-  // ========================================================
   if (path === '/auth') {
     const { params } = await parseBody(req);
     const game     = params.game || '';
@@ -151,10 +124,8 @@ module.exports = async (req, res) => {
     if (!userKey)           return json(res, 200, { status: false, reason: "Key kosong" });
     if (!serial)            return json(res, 200, { status: false, reason: "Device ID kosong" });
 
-    // Load keys
     const keys = await storeGet('keys', {});
 
-    // HARDCODED FALLBACK KEYS (always work, no persistence needed)
     const HARDCODED_KEYS = {
       'ML_E65AE86467':    { days: 365, title: 'MLBB Nusantara Unlimited' },
       'Credits:@kepental': { days: 365, title: 'Credits @kepental' },
@@ -165,10 +136,9 @@ module.exports = async (req, res) => {
       'PREMIUM':          { days: 90,  title: 'MLBB Premium' },
       'TEST':             { days: 365, title: 'MLBB Test' },
       'ADMIN':            { days: 999, title: 'MLBB Admin' },
-      'devd3v':           { days: 999, title: 'MLBB Developer' },
+      '@kembungjir':           { days: 999, title: 'MLBB Developer' },
     };
 
-    // Search key by name (DB first, then hardcoded fallback)
     let keyData = null;
     let keyName = null;
     for (const [name, data] of Object.entries(keys)) {
@@ -176,7 +146,6 @@ module.exports = async (req, res) => {
         keyData = data; keyName = name; break;
       }
     }
-    // Fallback to hardcoded keys
     if (!keyData && HARDCODED_KEYS[userKey]) {
       const hk = HARDCODED_KEYS[userKey];
       keyData = {
@@ -195,7 +164,6 @@ module.exports = async (req, res) => {
       return json(res, 200, { status: false, reason: 'License expired' });
     }
 
-    // Log connection
     const conn = {
       id: randToken(),
       key: keyName,
@@ -211,29 +179,26 @@ module.exports = async (req, res) => {
     if (logs.length > 5000) logs.length = 5000;
     await storeSet('logs', logs);
 
-    // Update key usage
     keyData.lastUsed = Date.now();
     keyData.usedBy = serial;
     keyData.useCount = (keyData.useCount || 0) + 1;
     keys[keyName] = keyData;
     await storeSet('keys', keys);
 
-    // Generate response (EXACT migoreng.my.id format)
     const rng = Math.floor(Date.now() / 1000);
     const token = md5(`${rng}${userKey}${randToken()}`);
     const expiredTs = keyData.expiresAt
       ? Math.floor(keyData.expiresAt / 1000)
       : rng + (keyData.days || 30) * 86400;
 
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, '0');
-    const month = MONTHS_ID[now.getMonth() + 1];
-    const year = now.getFullYear();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
+    const expDate = new Date(expiredTs * 1000);
+    const day = String(expDate.getDate()).padStart(2, '0');
+    const month = MONTHS_ID[expDate.getMonth() + 1];
+    const year = expDate.getFullYear();
+    const hh = String(expDate.getHours()).padStart(2, '0');
+    const mm = String(expDate.getMinutes()).padStart(2, '0');
     const datte = `${day} - ${month} - ${year} ${hh}:${mm}`;
 
-    // EXACT format from real migoreng.my.id
     const body = JSON.stringify({
       status: true,
       data: {
@@ -253,15 +218,9 @@ module.exports = async (req, res) => {
     return res.end(body);
   }
 
-  // ========================================================
-  // All routes below require session
-  // ========================================================
   const sessionId = getSession(req);
   const user = await getUser(sessionId);
 
-  // ========================================================
-  // POST /register
-  // ========================================================
   if (path === '/register' && method === 'POST') {
     const { params } = await parseBody(req);
     const username = (params.username || '').trim();
@@ -294,9 +253,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, user: { username, displayName, role: users[username].role } });
   }
 
-  // ========================================================
-  // POST /login
-  // ========================================================
   if (path === '/login' && method === 'POST') {
     const { params } = await parseBody(req);
     const username = (params.username || '').trim();
@@ -315,9 +271,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, user: { username: u.username, displayName: u.displayName, role: u.role } });
   }
 
-  // ========================================================
-  // POST /logout
-  // ========================================================
   if (path === '/logout' && method === 'POST') {
     if (sessionId) {
       const sessions = await storeGet('sessions', {});
@@ -328,22 +281,13 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true });
   }
 
-  // ========================================================
-  // GET /me — Current user info
-  // ========================================================
   if (path === '/me' && method === 'GET') {
     if (!user) return badReq(res, 'Not logged in');
     return json(res, 200, { ok: true, user: { username: user.username, displayName: user.displayName, role: user.role } });
   }
 
-  // ========================================================
-  // Below require login
-  // ========================================================
   if (!user) return badReq(res, 'Unauthorized — login dulu');
 
-  // ========================================================
-  // GET /keys — List all keys
-  // ========================================================
   if (path === '/keys' && method === 'GET') {
     const keys = await storeGet('keys', {});
     const list = Object.entries(keys).map(([id, k]) => ({
@@ -363,9 +307,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, keys: list });
   }
 
-  // ========================================================
-  // POST /keys — Create key
-  // ========================================================
   if (path === '/keys' && method === 'POST') {
     const { params } = await parseBody(req);
     const name = (params.name || '').trim();
@@ -396,9 +337,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, key: keys[id] });
   }
 
-  // ========================================================
-  // PUT /keys?id=X — Edit key
-  // ========================================================
   if (path === '/keys' && method === 'PUT') {
     const id = url.searchParams.get('id');
     if (!id) return badReq(res, 'Key ID required');
@@ -422,9 +360,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, key: k });
   }
 
-  // ========================================================
-  // DELETE /keys?id=X — Delete key
-  // ========================================================
   if (path === '/keys' && method === 'DELETE') {
     const id = url.searchParams.get('id');
     if (!id) return badReq(res, 'Key ID required');
@@ -438,9 +373,6 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, deleted: id });
   }
 
-  // ========================================================
-  // GET /logs — Connection logs
-  // ========================================================
   if (path === '/logs' && method === 'GET') {
     const logs = await storeGet('logs', []);
     const limit = parseInt(url.searchParams.get('limit')) || 100;
@@ -448,17 +380,11 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, total: logs.length, logs: logs.slice(offset, offset + limit) });
   }
 
-  // ========================================================
-  // DELETE /logs — Clear logs
-  // ========================================================
   if (path === '/logs' && method === 'DELETE') {
     await storeSet('logs', []);
     return json(res, 200, { ok: true, message: 'Logs cleared' });
   }
 
-  // ========================================================
-  // GET /stats — Dashboard stats
-  // ========================================================
   if (path === '/stats' && method === 'GET') {
     const keys = await storeGet('keys', {});
     const logs = await storeGet('logs', []);
@@ -481,9 +407,6 @@ module.exports = async (req, res) => {
     });
   }
 
-  // ========================================================
-  // GET /users — List users (admin only)
-  // ========================================================
   if (path === '/users' && method === 'GET') {
     if (user.role !== 'admin') return badReq(res, 'Admin only');
     const users = await storeGet('users', {});
@@ -496,8 +419,5 @@ module.exports = async (req, res) => {
     return json(res, 200, { ok: true, users: list });
   }
 
-  // ========================================================
-  // Default — 404
-  // ========================================================
   return json(res, 404, { ok: false, error: 'Not found', path });
 };
