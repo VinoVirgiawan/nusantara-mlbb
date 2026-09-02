@@ -202,6 +202,7 @@ module.exports = async (req, res) => {
         rng: rng,
         tittle: keyData.title || "MLBB Nusantara",
         instance: "Instance",
+        session: token,
         expired: datte
       }
     });
